@@ -65,7 +65,13 @@ spec:
               memory: 300Mi
               cpu: 50m
             limits:
-              memory: 1Gi
+              memory: 2Gi
+          startupProbe:
+            httpGet:
+              path: /-/health/live/
+              port: 9000
+            periodSeconds: 10
+            failureThreshold: 30
           readinessProbe:
             httpGet:
               path: /-/health/ready/
