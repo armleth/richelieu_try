@@ -13,6 +13,10 @@ spec:
       labels:
         app: authentik-server
     spec:
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "1"
       containers:
         - name: authentik
           image: ghcr.io/goauthentik/server:2025.12.4
@@ -63,24 +67,30 @@ spec:
           resources:
             requests:
               memory: 300Mi
-              cpu: 50m
+              cpu: 100
             limits:
-              memory: 2Gi
+              memory: 1Gi
           startupProbe:
             httpGet:
               path: /-/health/live/
               port: 9000
+            initialDelaySeconds: 0
             periodSeconds: 10
-            failureThreshold: 30
+            timeoutSeconds: 10
+            failureThreshold: 60
           readinessProbe:
             httpGet:
               path: /-/health/ready/
               port: 9000
             initialDelaySeconds: 30
             periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 5
           livenessProbe:
             httpGet:
               path: /-/health/live/
               port: 9000
             initialDelaySeconds: 60
             periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
