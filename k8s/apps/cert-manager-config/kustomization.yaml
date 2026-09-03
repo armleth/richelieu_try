@@ -21,5 +21,8 @@ resources:
   - certificates/lathibandolaise-prod.yaml
   - certificates/dbgate.yaml
   - certificates/actual-budget.yaml
-  - certificates/metrics.yaml
+  # metrics-tls lives in the `monitoring` namespace, which is removed while the
+  # monitoring stack is disabled (see templates/kustomization.yaml). Re-enable
+  # this together with the monitoring stack.
+  # - certificates/metrics.yaml
   - certificates/unmanic.yaml
