@@ -19,5 +19,11 @@ resources:
   - lathibandolaise.yaml
   - dbgate.yaml
   - actual-budget.yaml
-  - monitoring.yaml
-  - monitoring-config.yaml
+  # Monitoring stack temporarily disabled to free RAM on the memory-constrained
+  # node (~7.5 GiB). This prunes kube-prometheus-stack (Prometheus + Grafana),
+  # prometheus-blackbox-exporter, scaphandre and monitoring-config, including
+  # their PVCs/data. To re-enable once more RAM is available, simply uncomment
+  # the two lines below. The application definitions in monitoring.yaml /
+  # monitoring-config.yaml are left untouched.
+  # - monitoring.yaml
+  # - monitoring-config.yaml
