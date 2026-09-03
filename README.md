@@ -568,6 +568,10 @@ Authentication uses Karakeep's native OAuth/OIDC provider (`OAUTH_WELLKNOWN_URL=
 
 ## Monitoring
 
+> **Currently disabled to save RAM.** The stack is commented out of the app-of-apps until the node has more memory (see [Freeing RAM under pressure](#freeing-ram-under-pressure)). To re-enable, uncomment the two blocks below and `git push` -- ArgoCD recreates everything (data PVCs were pruned, so history starts fresh):
+> - `k8s/apps/argocd/templates/kustomization.yaml` -- `monitoring.yaml` + `monitoring-config.yaml`
+> - `k8s/apps/cert-manager-config/kustomization.yaml` -- `certificates/metrics.yaml` (its `metrics-tls` cert lives in the `monitoring` namespace)
+
 A lightweight observability stack runs in the `monitoring` namespace, deployed as three Helm-based ArgoCD Applications (`kube-prometheus-stack`, `prometheus-blackbox-exporter`, `scaphandre`) plus a sibling Kustomize app (`monitoring-config`) that holds the local CRs (Namespace, ExternalSecret, IngressRoute, ServiceMonitor, Probes).
 
 | Component | Purpose |
@@ -828,6 +832,26 @@ ssh <server> 'sysctl vm.swappiness vm.vfs_cache_pressure vm.dirty_ratio vm.dirty
 # vm.dirty_ratio = 10
 # vm.dirty_background_ratio = 5
 ```
+
+### Freeing RAM under pressure
+
+When the working set exceeds RAM the node starts swap-thrashing, and the failure mode is **not** obvious from `kubectl` -- the symptom is systemic slowness, not a single crashed pod:
+
+- `kubectl top node` shows CPU pegged near 100% while `kubectl top pod -A` shows every pod using <1 core combined. The missing CPU is host-side `kswapd` + I/O wait, which is not charged to any container.
+- In-cluster DNS starts timing out (`Temporary failure in name resolution`), the API server times out mid-request (`resource quota evaluation timed out`, `context deadline exceeded`), pods get stuck `Terminating`, and controllers with tight probes crash-loop (cnpg operator, kube-state-metrics). A pod can even read `1/1` in `kubectl get pods` while its pod-level `Ready` condition is stuck `False`, silently dropping it from its Service's endpoints.
+
+The single biggest lever is to drop the monitoring stack (~1.3 GiB: Prometheus alone is ~750 MiB). Do it through git (see [Monitoring](#monitoring)) so ArgoCD doesn't fight you. If the cluster is too wedged to sync, delete the Applications directly to match the committed state -- their finalizers cascade to the workloads:
+
+```bash
+kubectl delete application -n argocd \
+  kube-prometheus-stack prometheus-blackbox-exporter scaphandre monitoring-config
+# if the API is timing out on the finalizer cascade, force-drop the heavy pods:
+kubectl delete pod -n monitoring --all --force --grace-period=0
+```
+
+CPU drops back to ~20% within a minute or two of the working set fitting in RAM again, and DNS / API latency recover on their own. The `monitoring.coreos.com` CRDs are installed via Helm's `crds/` dir and are **not** ArgoCD-tracked, so removing the stack leaves them (and other apps' ServiceMonitors) intact.
+
+> Gotcha: `kubectl get ingressroute` resolves to the stale `traefik.containo.us` group and returns "No resources found" even when routes exist. Always query the real group: `kubectl get ingressroutes.traefik.io -A`.
 
 ### After every `nixos-rebuild switch`: bounce svclb-traefik
 
